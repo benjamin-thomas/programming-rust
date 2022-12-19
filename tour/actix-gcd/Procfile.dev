@@ -1,0 +1,4 @@
+# foreman start -f Procfile.dev
+# Or use separately: cargo watch --ignore elm/ -x run
+cargo_watch: find ./src/ -type f | entr -r cargo run
+elm_watch: find ./elm/src/ -type f | entr -r bash -c "cd elm && elm make src/Main.elm"
