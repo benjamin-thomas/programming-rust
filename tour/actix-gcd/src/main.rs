@@ -1,14 +1,37 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use elm_rs::{Elm, ElmDecode, ElmEncode};
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Elm, ElmEncode, ElmDecode)]
 struct GcdParameters {
     n: u64,
     m: u64,
+    other: Option<u8>,
 }
+
+/*
+  cargo watch --ignore elm/ -x run
+*/
 
 #[actix_web::main]
 async fn main() {
+    println!("==> Exporting Elm types...");
+    let mut elm_target = vec![];
+    let generated_name = "Domain";
+    let generated_module_name = "Generated.Domain";
+    let generated_path = format!("elm/src/Generated/{}.elm", generated_name);
+    elm_rs::export!(generated_module_name, &mut elm_target, {
+        encoders: [GcdParameters],
+        decoders: [GcdParameters],
+        // queries: [Query],
+        // query_fields: [Size],
+    })
+    .expect("Could not generate Elm types!");
+    let elm_output =
+        String::from_utf8(elm_target).expect("Could not build String from exported Elm types");
+
+    std::fs::write(generated_path, elm_output).expect("Could not write file: Generated.elm");
+
     let server = HttpServer::new(|| {
         App::new()
             .route("/", web::get().to(get_index))
