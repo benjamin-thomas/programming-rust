@@ -252,9 +252,43 @@ fn main() {
 
 
     let mut pixels = vec![0; dim.0 * dim.1];
-    render(&mut pixels, dim, ul, lr);
+    // render(&mut pixels, dim, ul, lr);
+    let threads = 4;
+    let rows_per_band = dim.1 / threads + 1;
+    {
+        let bands: Vec<&mut [u8]> = pixels.chunks_mut(rows_per_band * dim.0).collect();
+        crossbeam::scope(|spawner| {
+            for (i, band) in bands.into_iter().enumerate() {
+                let top = rows_per_band * i;
+                let height = band.len() / dim.0;
+                let band_dim = (dim.0, height);
+                let band_upper_left = pixel_to_point(dim, (0, top), ul, lr);
+                let band_lower_right = pixel_to_point(dim, (dim.0, top + height), ul, lr);
+                spawner.spawn(move |_| {
+                    render(band, band_dim, band_upper_left, band_lower_right);
+                });
+            }
+        }).unwrap();
+    }
 
     write_image(&args[1], &pixels, dim).expect("Error writing PNG file");
-
-
 }
+
+/*
+No parallelism:
+$ time ./target/release/mandelbrot /tmp/mandel.png 4000x3000 -1.20,0.35 -1,0.20
+["./target/release/mandelbrot", "/tmp/mandel.png", "4000x3000", "-1.20,0.35", "-1,0.20"]
+
+real    0m5.114s
+user    0m5.102s
+sys     0m0.004s
+---
+With crossbeam:
+$ time ./target/release/mandelbrot /tmp/mandel.png 4000x3000 -1.20,0.35 -1,0.20
+["./target/release/mandelbrot", "/tmp/mandel.png", "4000x3000", "-1.20,0.35", "-1,0.20"]
+
+real    0m2.876s
+user    0m5.296s
+sys     0m0.008s
+
+ */
